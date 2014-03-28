@@ -99,20 +99,22 @@ class Worker implements ContainerAwareInterface {
         }
 
         if($this->fork_count > 1 ) {
-            for($i = 0; $i < $this->fork_count; $i++) {
+            for($i = 0; $i < $this->fork_count - 1; $i++) {
                 $pid = pcntl_fork();
 
                 if($pid == -1) {
                     throw new \RuntimeException(sprintf('Could not fork worker %s', $i));
+                } elseif($pid == 0) {
+                    // Work in the child process
+                    $this->work();
+                    return;
                 }
-
-                $this->work();
-                break;
             }
         }
-        else {
-            $this->work();
-        }
+        
+        // Work in the parent process and wait for the children
+        $this->work();
+        pcntl_wait($status);
     }
 
     public function work() {
