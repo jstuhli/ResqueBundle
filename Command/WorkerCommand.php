@@ -17,17 +17,19 @@ class WorkerCommand extends ContainerAwareCommand {
             ->addOption('log', 'l', InputOption::VALUE_OPTIONAL, 'Verbose mode [verbose|normal|none]')
             ->addOption('interval', 'i', InputOption::VALUE_OPTIONAL, 'Daemon check interval (in seconds)', 5)
             ->addOption('forkCount', 'f', InputOption::VALUE_OPTIONAL, 'Fork count instances', 1)
+            ->addOption('noJobFork', null, InputOption::VALUE_NONE, 'Disable job forking')
             ->addOption('daemon', null, \Symfony\Component\Console\Input\InputOption::VALUE_NONE, 'Run worker as daemon')
             ->addOption('stop', null, \Symfony\Component\Console\Input\InputOption::VALUE_NONE, 'Run worker as daemon')
             ->setHelp(<<<EOF
 Worker will run all jobs enqueue by PHPResqueBundle\Resque\Queue command line and defined by Queue class.
 You can run more than one queue per time. In this case input all queues names separated by commas on the 'queue' argument.
 EOF
-        );
+            );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output) {
         $pidFile = $this->getContainer()->getParameter('resque_pid');
+        $this->getContainer()->get('doctrine_mongodb.odm.document_manager')->getRepository('SofaScoreModelBundle:Event')->find(1);
 
         if ($input->getOption('daemon')) {
             $this->startDaemon(
@@ -36,7 +38,8 @@ EOF
                 $input->getArgument('queue'),
                 $input->getOption('log'),
                 $input->getOption('interval'),
-                $input->getOption('forkCount')
+                $input->getOption('forkCount'),
+                !$input->getOption('noJobFork')
             );
         }
         elseif($input->getOption('stop')) {
@@ -47,12 +50,13 @@ EOF
                 $input->getArgument('queue'),
                 $input->getOption('log'),
                 $input->getOption('interval'),
-                $input->getOption('forkCount')
+                $input->getOption('forkCount'),
+                !$input->getOption('noJobFork')
             );
         }
     }
 
-    private function startDaemon($pidFile, OutputInterface $output, $queue, $log, $interval, $forkCount)
+    private function startDaemon($pidFile, OutputInterface $output, $queue, $log, $interval, $forkCount, $forkJob)
     {
         if ($this->checkIsRunning($pidFile)) {
             $output->writeln(array(
@@ -75,7 +79,7 @@ EOF
             die();
         }
         // Le fils
-        $this->work($queue, $log, $interval, $forkCount);
+        $this->work($queue, $log, $interval, $forkCount, $forkJob);
     }
 
     private function stopDaemon($pidFile, OutputInterface $output)
@@ -115,12 +119,13 @@ EOF
         return true;
     }
 
-    private function work($queue, $log, $interval, $forkCount) {
+    private function work($queue, $log, $interval, $forkCount, $forkJob) {
         $worker = $this->getContainer()->get('glit_resque.worker_manager');
         $worker->defineQueue($queue);
         $worker->verbose($log);
         $worker->setInterval($interval);
         $worker->forkInstances($forkCount);
+        $worker->forkJob($forkJob);
         $worker->daemon();
     }
 }

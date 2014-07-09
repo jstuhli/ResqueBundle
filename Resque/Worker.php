@@ -20,6 +20,7 @@ class Worker implements ContainerAwareInterface {
     private $logging = 'normal';
     private $interval = 5;
     private $fork_count = 1;
+    private $forkJob = true;
 
     /**
      *
@@ -61,6 +62,16 @@ class Worker implements ContainerAwareInterface {
 
     public function setInterval($interval) {
         $this->interval = (int)$interval;
+    }
+
+    /**
+     * Sets the flag to enable or disable forking before performing a job
+     *
+     * @param boolean $forkJob true to enable job forking, false to disable, default is true
+     */
+    public function forkJob($forkJob)
+    {
+        $this->forkJob = $forkJob;
     }
 
     public function forkInstances($count) {
@@ -105,20 +116,17 @@ class Worker implements ContainerAwareInterface {
                 if($pid == -1) {
                     throw new \RuntimeException(sprintf('Could not fork worker %s', $i));
                 } elseif($pid == 0) {
-                    // Work in the child process
                     $this->work();
                     return;
                 }
             }
         }
-        
-        // Work in the parent process and wait for the children
         $this->work();
         pcntl_wait($status);
     }
 
     public function work() {
-        $worker = new \Resque\Worker(explode(',', $this->queue));
+        $worker = new \Resque\Worker(explode(',', $this->queue), $this->forkJob);
         $worker->logLevel = $this->loglevel();
         $worker->work($this->interval);
 
