@@ -29,7 +29,6 @@ EOF
 
     protected function execute(InputInterface $input, OutputInterface $output) {
         $pidFile = $this->getContainer()->getParameter('resque_pid');
-        $this->getContainer()->get('doctrine_mongodb.odm.document_manager')->getRepository('SofaScoreModelBundle:Event')->find(1);
 
         if ($input->getOption('daemon')) {
             $this->startDaemon(
